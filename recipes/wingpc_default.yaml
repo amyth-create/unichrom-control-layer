@@ -1,0 +1,112 @@
+# Recipes for WinGPC UniChrom.
+#
+# IMPORTANT: menu/control names below are STARTING GUESSES assembled from the
+# public Agilent/PSS documentation (Raw Data window, Data Editor, "File > ASCII
+# export...", "Save ASCII Report", ChromPilot "Sequence Manager" / "Instrument
+# Manager"). They are marked verified: false until an operator has run
+#   wingpc-agent probe --ui-tree
+# on the WinGPC PC, compared the dumped control names with these paths, fixed
+# them, and flipped the flag. The server refuses unverified recipes by default.
+#
+# UIA path grammar:  <window title regex>|<ctrl_type>:<Name>|...   (see recipes.py)
+
+main_window: ".*WinGPC.*"
+
+recipes:
+
+  focus_main:
+    description: Bring the WinGPC main window to the foreground.
+    level: observe
+    verified: false
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+
+  open_project:
+    description: Open a WinGPC project file via File > Open.
+    level: control
+    verified: false
+    params: {path: "Full path of the project to open"}
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: menu, path: ["File", "Open..."]}
+      - {kind: wait, title_re: ".*(Open|Öffnen).*", timeout: 10}
+      - {kind: type, target: ".*(Open|Öffnen).*|Edit:File name:", text: "{path}"}
+      - {kind: keys, keys: "{ENTER}"}
+      - {kind: wait_gone, title_re: ".*(Open|Öffnen).*", timeout: 30}
+
+  ascii_export_raw_data:
+    description: >
+      Export the current Raw Data window as an ASCII text file through the
+      Data Editor (Raw Data menu -> Data Editor, then File -> ASCII export...).
+    level: control
+    verified: false
+    params: {path: "Destination .txt path"}
+    returns: path
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: menu, path: ["Raw Data", "Data Editor"]}
+      - {kind: wait, title_re: ".*Data ?Editor.*", timeout: 15}
+      - {kind: menu, window_re: ".*Data ?Editor.*", path: ["File", "ASCII export..."]}
+      - {kind: wait, title_re: ".*(Save|Speichern|Export).*", timeout: 10}
+      - {kind: type, target: ".*(Save|Speichern|Export).*|Edit:File name:", text: "{path}"}
+      - {kind: keys, keys: "{ENTER}"}
+      - {kind: wait_gone, title_re: ".*(Save|Speichern|Export).*", timeout: 30}
+
+  save_ascii_report_mwd:
+    description: >
+      MWD window -> File -> Save ASCII Report (raw + elugram chromatograms,
+      molar mass distribution and method as one text file).
+    level: control
+    verified: false
+    params: {path: "Destination .txt path"}
+    returns: path
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: menu, path: ["Window", "MWD"]}
+      - {kind: menu, path: ["File", "Save ASCII Report"]}
+      - {kind: wait, title_re: ".*(Save|Speichern).*", timeout: 10}
+      - {kind: type, target: ".*(Save|Speichern).*|Edit:File name:", text: "{path}"}
+      - {kind: keys, keys: "{ENTER}"}
+      - {kind: wait_gone, title_re: ".*(Save|Speichern).*", timeout: 30}
+
+  open_sequence_manager:
+    description: Open the ChromPilot Sequence Manager.
+    level: observe
+    verified: false
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: menu, path: ["ChromPilot", "Sequence Manager"]}
+      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 15}
+
+  open_instrument_manager:
+    description: Open the ChromPilot Instrument Manager (status of pump, detectors, autosampler).
+    level: observe
+    verified: false
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: menu, path: ["ChromPilot", "Instrument Manager"]}
+      - {kind: wait, title_re: ".*Instrument ?Manager.*", timeout: 15}
+
+  sequence_start:
+    description: Start the loaded sequence in the ChromPilot Sequence Manager.
+    level: hazardous
+    verified: false
+    steps:
+      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
+      - {kind: click, target: ".*Sequence ?Manager.*|Button:Start"}
+
+  sequence_stop:
+    description: Stop / abort the running sequence.
+    level: hazardous
+    verified: false
+    steps:
+      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
+      - {kind: click, target: ".*Sequence ?Manager.*|Button:Stop"}
+
+  sequence_pause:
+    description: Pause the running sequence after the current sample.
+    level: hazardous
+    verified: false
+    steps:
+      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
+      - {kind: click, target: ".*Sequence ?Manager.*|Button:Pause"}

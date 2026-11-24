@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "wingpc": {
+      "command": "python",
+      "args": ["-m", "wingpc_agent.cli", "serve"],
+      "env": {
+        "WINGPC_AGENT_CONFIG": "C:\\Users\\lab\\.wingpc-agent\\config.yaml"
+      }
+    }
+  }
+}

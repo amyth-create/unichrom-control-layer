@@ -1,0 +1,42 @@
+# Safety policy for tools the LLM may call. Levels: observe | control | hazardous | denied
+default_level: control
+confirm_ttl_s: 300
+
+tools:
+  # observation (free)
+  wingpc_status: observe
+  ui_tree: observe
+  ui_find: observe
+  ui_read_text: observe
+  ui_screenshot: observe
+  chrom_live_snapshot: observe
+  chrom_live_history: observe
+  chrom_live_peaks: observe
+  chrom_live_image: observe
+  files_list_recent: observe
+  files_read_ascii: observe
+  recipes_list: observe
+  discovery_report: observe
+  audit_tail: observe
+
+  # software control (allowed, logged)
+  ui_click: control
+  ui_type: control
+  ui_menu: control
+  ui_keys: control
+  ui_select: control
+  chrom_live_start: control
+  chrom_live_stop: control
+  chrom_set_axes: control
+  recipe_run: control          # the recipe's own level is ALSO enforced
+  export_ascii: control
+
+  # can ruin a run or hurt hardware -> needs a confirmation token
+  recipe_sequence_start: hazardous
+  recipe_sequence_stop: hazardous
+  recipe_sequence_pause: hazardous
+  ui_close_window: hazardous
+  process_kill: denied
+
+# Hazardous tools a human has pre-approved for unattended operation.
+unattended_ok: []
