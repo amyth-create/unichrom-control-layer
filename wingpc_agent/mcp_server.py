@@ -35,6 +35,9 @@ from .errors import ActionDenied, BackendUnavailable, ElementNotFound, RecipeErr
 from .recipes import RecipeBook
 from .safety import Gate, Policy
 from .stream import LiveMonitor
+from .gbl.bridge import Bridge, BridgeConfig, Instrument
+from .gbl.client import FolderClient, GBLError, HttpClient
+from .gbl.method import from_gbl
 
 
 class Context:
@@ -78,6 +81,36 @@ class Context:
             except (BackendUnavailable, ElementNotFound):
                 return None
         return None
+
+    # ---------------------------------------------------------------- GBL bridge
+    _bridge: Bridge | None = None
+
+    def gbl_client(self):
+        g = self.s.gbl
+        if g.campaign_dir:
+            return FolderClient(g.campaign_dir)
+        return HttpClient(g.url)
+
+    def bridge(self, run_recipe) -> Bridge:
+        if self._bridge is None:
+            g = self.s.gbl
+            cfg = BridgeConfig(
+                method_strategy=g.method_strategy, template_file=g.template_file,
+                method_out_dir=g.method_out_dir, export_dir=self.s.export_dir or self.s.state_dir,
+                fixed_extra_min=g.fixed_extra_min, post_time_min=g.post_time_min, status_path=g.status_path,
+                detector_column_re=g.detector_column_re, upload_format=g.upload_format,
+                auto_read=g.auto_read, confirm_each_run=False,   # headless: confirmation is the token
+            )
+            inst = Instrument(
+                run_recipe=run_recipe,
+                read_text=lambda path: self.uia.read_text(path),
+                monitor_snapshot=lambda: self.monitor.snapshot(max_points=50, with_peaks=False),
+                monitor_start=self.monitor.start,
+                notify_operator=lambda msg: self.gate.audit("operator_notice", "bridge", {"msg": msg[:500]}),
+                wait_operator=None,
+            )
+            self._bridge = Bridge(self.gbl_client(), inst, cfg, audit=self.gate.audit)
+        return self._bridge
 
     def _on_file(self, ev) -> None:
         self._file_events.append({"t": time.time(), **ev.__dict__})
@@ -386,6 +419,85 @@ def build_server(settings: Settings | None = None) -> MCPServer:
         guard("chrom_set_axes", {"x": [x_min, x_max], "y": [y_min, y_max]})
         ctx.monitor.set_axes(x_min, x_max, y_min, y_max, x_unit, y_unit)
         return json.dumps({"calibration": ctx.monitor.calibration().to_dict()})
+
+    # ------------------------------------------------------------ Gradient Bench LLM
+    @srv.tool(description="State of the Gradient Bench LLM campaign (its /api/state): campaign facts, limits, "
+                          "budget, next step and the method in flight, if any.")
+    def gbl_state() -> str:
+        guard("gbl_state", {})
+        try:
+            return json.dumps(ctx.gbl_client().state(), default=str)
+        except GBLError as e:
+            return err(e)
+
+    @srv.tool(description="The GBL method waiting to be run on the instrument (gradient timetable, temperature, "
+                          "run number) as a WinGPC operator table. Empty when nothing is in flight or the trace "
+                          "has already been uploaded.")
+    def gbl_pending_method() -> str:
+        guard("gbl_pending_method", {})
+        try:
+            pend = ctx.gbl_client().pending()
+            if not pend:
+                return json.dumps({"pending": None})
+            m = from_gbl(pend)
+            return json.dumps({"pending_step": pend.get("step"), "already_uploaded": bool(pend.get("trace")),
+                               "method": m.to_dict(), "table": m.table_text(),
+                               "rationale": pend.get("rationale"), "expectation": pend.get("expectation")})
+        except (GBLError, ValueError) as e:
+            return err(e)
+
+    @srv.tool(description="Upload an ASCII export (a file in the export dir, e.g. from export_ascii) to GBL as the "
+                          "trace of the run in flight. GBL validates it and stores it as traces/runNN.txt.")
+    def gbl_upload_trace(path: str, original_name: str | None = None) -> str:
+        guard("gbl_upload_trace", {"path": path})
+        p = Path(path)
+        if not p.exists():
+            return json.dumps({"error": "file not found", "path": path})
+        try:
+            pend = ctx.gbl_client().upload(p, original_name)
+            return json.dumps({"stored_as": pend.get("trace"), "trace_facts": pend.get("trace_facts"),
+                               "step": pend.get("step")}, default=str)
+        except GBLError as e:
+            return err(e)
+
+    @srv.tool(description="Ask GBL's model to read the uploaded trace (its /api/read job) and return the reading: "
+                          "peaks, unresolved regions, verdict vs the best run. Recording stays with the analyst.")
+    def gbl_read(timeout_s: float = 600) -> str:
+        guard("gbl_read", {})
+        try:
+            pend = ctx.gbl_client().read(timeout_s)
+            return json.dumps({"reading": pend.get("reading"), "compared_to": pend.get("compared_to"),
+                               "step": pend.get("step")}, default=str)
+        except GBLError as e:
+            return err(e)
+
+    @srv.tool(description="HAZARDOUS: run GBL's pending method on WinGPC end to end - apply the method (strategy "
+                          "from config: manual/template/recipe), start the sequence, wait for the run, ASCII export, "
+                          "upload to GBL and (if auto_read) have GBL read it. Needs a confirm_token. Returns a "
+                          "step-by-step report.")
+    def gbl_run_cycle(confirm_token: str | None = None) -> str:
+        try:
+            guard("gbl_run_cycle", {}, confirm_token)
+        except WinGPCAgentError as e:
+            return err(e)
+        # Recipes inside the cycle run under the same confirmation: the cycle itself was approved.
+        def run_recipe(name: str, params: dict[str, Any], token: str | None) -> dict[str, Any]:
+            rec = ctx.book.get(name)
+            tok = token
+            if rec.level == "hazardous":
+                tok = ctx.gate.issue_token(f"recipe_{name}", f"covered by approved gbl_run_cycle")
+            return _run_recipe(name, params, tok)
+        try:
+            rep = ctx.bridge(run_recipe).run_once()
+            return json.dumps(rep.to_dict(), default=str)
+        except (WinGPCAgentError, GBLError) as e:
+            return err(e)
+
+    @srv.tool(description="Reports of GBL run cycles executed by this server (newest last).")
+    def gbl_reports(n: int = 5) -> str:
+        guard("gbl_reports", {"n": n})
+        b = ctx._bridge
+        return json.dumps([r.to_dict() for r in (b.reports[-n:] if b else [])], default=str)
 
     # ------------------------------------------------------------ files
     @srv.tool(description="Recent files in the export/project directories (newest first).")

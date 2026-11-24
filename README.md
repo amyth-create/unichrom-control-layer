@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-25%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-35%20passing-brightgreen.svg)](tests/)
 [![MCP server](https://img.shields.io/badge/MCP-server-8A2BE2.svg)](https://modelcontextprotocol.io/)
 [![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](docs/RUNBOOK.md)
 
@@ -37,8 +37,9 @@ the included Anthropic-SDK agent loop can drive it.
 
 ```
 wingpc_agent/
-  cli.py            probe | serve | monitor | parse | confirm | com-inspect | config-init
-  mcp_server.py     25 MCP tools (wingpc_*, ui_*, recipe_*, chrom_*, files_*, audit_tail)
+  cli.py            probe | serve | bridge | monitor | parse | confirm | com-inspect | config-init
+  mcp_server.py     31 MCP tools (wingpc_*, ui_*, recipe_*, chrom_*, files_*, gbl_*, audit_tail)
+  gbl/              Gradient Bench LLM bridge: client.py, method.py, bridge.py
   discovery.py      what does THIS installation expose?
   stream.py         real-time monitor thread + ring buffer
   recipes.py        YAML recipes (verified UI procedures)
@@ -49,8 +50,8 @@ wingpc_agent/
 recipes/            wingpc_default.yaml (menu paths, unverified), policy_default.yaml
 agent/              run_agent.py (Claude tool-runner over MCP stdio), Claude Desktop config example
 sim/fake_wingpc.py  Tk stand-in for the Raw Data window for rehearsals
-tests/              25 tests (parser, peak picking, pixel extraction, policy, server offline)
-docs/               RESEARCH.md, ARCHITECTURE.md, RUNBOOK.md
+tests/              35 tests (parser, peaks, pixel extraction, policy, server offline, GBL bridge)
+docs/               RESEARCH.md, ARCHITECTURE.md, RUNBOOK.md, GRADIENT_BENCH.md
 ```
 
 ## Quick start
@@ -78,6 +79,19 @@ python agent/run_agent.py --watch "Start the live monitor, calibrate the axes fr
 Full procedure, including verifying recipes and the simulator rehearsal:
 [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
+## Working with Gradient Bench LLM
+
+[Gradient Bench LLM](https://github.com/amyth-create/gradient-bench-llm) proposes
+gradient methods and reads the uploaded export; it cannot run the instrument.
+`wingpc-agent bridge` polls its API for the method in flight, applies it in
+WinGPC (manual, template or recipe strategy), starts and watches the run,
+exports the ASCII trace and uploads it back, optionally triggering GBL's model
+read. Recording stays with the analyst. See [docs/GRADIENT_BENCH.md](docs/GRADIENT_BENCH.md).
+
+```bash
+wingpc-agent bridge --gbl http://127.0.0.1:5052 --once
+```
+
 ## Tools the LLM sees
 
 | Family | Tools | Level |
@@ -89,6 +103,7 @@ Full procedure, including verifying recipes and the simulator rehearsal:
 | recipes | `recipes_list`, `recipe_run`, `export_ascii` | per recipe |
 | live chromatogram | `chrom_live_start/stop`, `chrom_live_snapshot`, `chrom_live_image`, `chrom_live_history`, `chrom_live_peaks`, `chrom_set_axes` | observe / control |
 | files | `files_list_recent`, `files_read_ascii` | observe |
+| Gradient Bench LLM | `gbl_state`, `gbl_pending_method`, `gbl_reports` / `gbl_upload_trace`, `gbl_read` / `gbl_run_cycle` | observe / control / hazardous |
 
 Hazardous recipes shipped: `sequence_start`, `sequence_stop`, `sequence_pause`.
 

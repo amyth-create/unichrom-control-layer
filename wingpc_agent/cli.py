@@ -37,6 +37,15 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("com-inspect", help="instantiate a discovered COM ProgID and list its members")
     p.add_argument("progid")
 
+    p = sub.add_parser("bridge", help="Gradient Bench LLM: run every pending method on WinGPC and upload the export")
+    p.add_argument("--gbl", help="GBL base URL (default from config / GBL_URL, http://127.0.0.1:5052)")
+    p.add_argument("--campaign-dir", help="folder mode: use gradient_llm directly on this campaign (GBL page not running)")
+    p.add_argument("--strategy", choices=["manual", "template", "recipe"], help="how the method gets into WinGPC")
+    p.add_argument("--once", action="store_true", help="run one cycle and exit")
+    p.add_argument("--yes", action="store_true", help="do not ask before starting each injection (unattended)")
+    p.add_argument("--no-read", action="store_true", help="upload only; skip GBL's model read")
+    p.add_argument("--dry-run", action="store_true", help="show the pending method and the plan, change nothing")
+
     p = sub.add_parser("config-init", help="write a starter config YAML")
     p.add_argument("path", nargs="?", default=str(Path.home() / ".wingpc-agent" / "config.yaml"))
 
@@ -110,12 +119,93 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(try_instantiate(a.progid), indent=2))
         return 0
 
+    if a.cmd == "bridge":
+        return _bridge_cmd(s, a)
+
     if a.cmd == "config-init":
         Path(a.path).parent.mkdir(parents=True, exist_ok=True)
         s.dump(a.path)
         print(a.path)
         return 0
     return 1
+
+
+def _bridge_cmd(s: Settings, a) -> int:
+    from .gbl.bridge import Bridge, BridgeConfig, Instrument
+    from .gbl.client import FolderClient, GBLError, HttpClient
+    from .mcp_server import build_server
+
+    g = s.gbl
+    if a.gbl:
+        g.url = a.gbl
+    if a.campaign_dir:
+        g.campaign_dir = a.campaign_dir
+    if a.strategy:
+        g.method_strategy = a.strategy
+    client = FolderClient(g.campaign_dir) if g.campaign_dir else HttpClient(g.url)
+    try:
+        st = client.state()
+    except GBLError as e:
+        print(f"cannot talk to Gradient Bench LLM: {e}", file=sys.stderr)
+        return 2
+    print(f"GBL campaign: {(st.get('campaign') or {}).get('name')}  next: {(st.get('next') or {}).get('title')}")
+    if a.dry_run:
+        from .gbl.method import from_gbl
+        pend = client.pending()
+        if pend and not pend.get("trace"):
+            m = from_gbl(pend)
+            print(f"pending run {m.run_no}: {pend.get('describe')}\n{m.table_text()}")
+            print(f"strategy={g.method_strategy} export_dir={s.export_dir or s.state_dir} auto_read={not a.no_read}")
+        else:
+            print("nothing waiting for a trace")
+        return 0
+
+    # Reuse the MCP server's context so recipes, gate, monitor and audit are the same objects.
+    srv = build_server(s)
+    ctx = srv._wingpc_ctx
+    cfg = BridgeConfig(
+        method_strategy=g.method_strategy, template_file=g.template_file, method_out_dir=g.method_out_dir,
+        export_dir=s.export_dir or s.state_dir, fixed_extra_min=g.fixed_extra_min, post_time_min=g.post_time_min,
+        status_path=g.status_path, detector_column_re=g.detector_column_re, upload_format=g.upload_format,
+        auto_read=not a.no_read, confirm_each_run=not a.yes,
+    )
+
+    def run_recipe(name, params, token):
+        # Operator-driven CLI: hazardous recipes are confirmed at the console by the Gate itself.
+        ctx.gate.interactive_confirm = not a.yes
+        if a.yes:
+            ctx.gate.policy.unattended_ok.update({f"recipe_{name}"})
+        import asyncio
+        res = asyncio.run(srv.call_tool("recipe_run", {"name": name, "params": params, "confirm_token": token}))
+        content = res.content if hasattr(res, "content") else res
+        return json.loads(content[0].text)
+
+    def wait_operator(prompt: str) -> bool:
+        try:
+            return input(prompt).strip().lower() in ("y", "yes")
+        except EOFError:
+            return False
+
+    inst = Instrument(run_recipe=run_recipe, read_text=lambda p: ctx.uia.read_text(p),
+                      monitor_snapshot=lambda: ctx.monitor.snapshot(max_points=50, with_peaks=False),
+                      monitor_start=ctx.monitor.start, notify_operator=print,
+                      wait_operator=None if a.yes else wait_operator)
+    bridge = Bridge(client, inst, cfg, audit=ctx.gate.audit)
+
+    def show(rep):
+        for st in rep.steps:
+            print(f"  [{'ok' if st.ok else 'FAIL'}] {st.step}: {st.detail[:160]}")
+        print(f"run {rep.run_no}: {'complete' if rep.ok else 'incomplete'}; export={rep.export_path} uploaded_as={rep.uploaded_as}")
+
+    if a.once:
+        show(bridge.run_once())
+        return 0
+    print(f"polling GBL every {g.poll_s:.0f}s for methods to run (Ctrl-C to stop)")
+    try:
+        bridge.serve(poll_s=g.poll_s, on_report=show)
+    except KeyboardInterrupt:
+        bridge.stop()
+    return 0
 
 
 if __name__ == "__main__":

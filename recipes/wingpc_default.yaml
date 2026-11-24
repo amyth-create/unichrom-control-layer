@@ -110,3 +110,80 @@ recipes:
     steps:
       - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
       - {kind: click, target: ".*Sequence ?Manager.*|Button:Pause"}
+
+  # ---------------------------------------------------------------- Gradient Bench LLM
+  # Used by the GBL bridge (wingpc_agent/gbl). The pump timetable and column
+  # temperature live in the ChromPilot instrument method; how the editor looks
+  # must be learned from `wingpc-agent probe` (ui_tree of the method editor).
+
+  load_instrument_method:
+    description: >
+      Load an instrument method file produced from a template (template
+      strategy) so the next sequence line uses it. Path comes from the bridge.
+    level: control
+    verified: false
+    params: {path: "Method file written by gbl.method.write_method_file"}
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: menu, path: ["ChromPilot", "Instrument Manager"]}
+      - {kind: wait, title_re: ".*Instrument ?Manager.*", timeout: 15}
+      - {kind: menu, window_re: ".*Instrument ?Manager.*", path: ["Method", "Load..."]}
+      - {kind: wait, title_re: ".*(Open|Öffnen|Load).*", timeout: 10}
+      - {kind: type, target: ".*(Open|Öffnen|Load).*|Edit:File name:", text: "{path}"}
+      - {kind: keys, keys: "{ENTER}"}
+      - {kind: wait_gone, title_re: ".*(Open|Öffnen|Load).*", timeout: 30}
+
+  apply_gradient_method:
+    description: >
+      Fill the pump timetable and oven setpoint in the ChromPilot method editor
+      (recipe strategy). Params t0..t9 / b0..b9 / a0..a9 are node times and %B /
+      %A as strings (blank when unused), temperature_c, n_rows, duration_min.
+      The grid cell paths below are placeholders to be replaced from the probe.
+    level: hazardous
+    verified: false
+    params:
+      temperature_c: "oven setpoint"
+      n_rows: "number of timetable rows"
+      duration_min: "time of the last node"
+      t0: "node 0 time (blank if unused)"
+      b0: "node 0 %B (blank if unused)"
+      a0: "node 0 %A (blank if unused)"
+      t1: "node 1 time (blank if unused)"
+      b1: "node 1 %B (blank if unused)"
+      a1: "node 1 %A (blank if unused)"
+      t2: "node 2 time (blank if unused)"
+      b2: "node 2 %B (blank if unused)"
+      a2: "node 2 %A (blank if unused)"
+      t3: "node 3 time (blank if unused)"
+      b3: "node 3 %B (blank if unused)"
+      a3: "node 3 %A (blank if unused)"
+      t4: "node 4 time (blank if unused)"
+      b4: "node 4 %B (blank if unused)"
+      a4: "node 4 %A (blank if unused)"
+      t5: "node 5 time (blank if unused)"
+      b5: "node 5 %B (blank if unused)"
+      a5: "node 5 %A (blank if unused)"
+      t6: "node 6 time (blank if unused)"
+      b6: "node 6 %B (blank if unused)"
+      a6: "node 6 %A (blank if unused)"
+      t7: "node 7 time (blank if unused)"
+      b7: "node 7 %B (blank if unused)"
+      a7: "node 7 %A (blank if unused)"
+      t8: "node 8 time (blank if unused)"
+      b8: "node 8 %B (blank if unused)"
+      a8: "node 8 %A (blank if unused)"
+      t9: "node 9 time (blank if unused)"
+      b9: "node 9 %B (blank if unused)"
+      a9: "node 9 %A (blank if unused)"
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: menu, path: ["ChromPilot", "Instrument Manager"]}
+      - {kind: wait, title_re: ".*Instrument ?Manager.*", timeout: 15}
+      - {kind: click, target: ".*Instrument ?Manager.*|TabItem:Pump"}
+      - {kind: type, target: ".*Instrument ?Manager.*|Edit:%B", text: "{b0}"}
+      - {kind: click, target: ".*Instrument ?Manager.*|TabItem:Timetable"}
+      - {kind: type, target: ".*Instrument ?Manager.*|DataGrid:Timetable|DataItem:index=0|Edit:Time", text: "{t1}"}
+      - {kind: type, target: ".*Instrument ?Manager.*|DataGrid:Timetable|DataItem:index=0|Edit:%B", text: "{b1}"}
+      - {kind: click, target: ".*Instrument ?Manager.*|TabItem:Column"}
+      - {kind: type, target: ".*Instrument ?Manager.*|Edit:Temperature", text: "{temperature_c}"}
+      - {kind: click, target: ".*Instrument ?Manager.*|Button:Save"}

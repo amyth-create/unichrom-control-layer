@@ -41,6 +41,26 @@ class PlotRegion:
 
 
 @dataclass
+class GBLSettings:
+    """Gradient Bench LLM bridge (see wingpc_agent/gbl)."""
+
+    enabled: bool = False
+    url: str = "http://127.0.0.1:5052"       # GBL's Flask app; or set campaign_dir for folder mode
+    campaign_dir: str | None = None
+    poll_s: float = 5.0
+    method_strategy: str = "manual"           # manual | template | recipe
+    template_file: str | None = None
+    method_out_dir: str | None = None
+    fixed_extra_min: float = 0.0              # wash/re-equilibration time counted in the acquisition
+    post_time_min: float | None = None
+    status_path: str | None = None            # UIA path of ChromPilot's run-state text (from probe)
+    detector_column_re: str | None = None     # e.g. "UV|254" to pick the detector column on normalise
+    upload_format: str = "original"           # original | normalised
+    auto_read: bool = True                    # call GBL /api/read after the upload
+    confirm_each_run: bool = True             # operator must say yes before an injection starts
+
+
+@dataclass
 class Settings:
     # Process / window identification
     process_names: list[str] = field(default_factory=lambda: ["WinGPC.exe", "WinGPC", "ChromPilot.exe"])
@@ -53,6 +73,7 @@ class Settings:
     poll_hz: float = 2.0
     ring_seconds: int = 7200
     plot: PlotRegion = field(default_factory=PlotRegion)
+    gbl: GBLSettings = field(default_factory=GBLSettings)
     # Recipes (verified UI paths) and the safety policy
     recipes_file: str = str(Path(__file__).resolve().parent.parent / "recipes" / "wingpc_default.yaml")
     policy_file: str = str(Path(__file__).resolve().parent.parent / "recipes" / "policy_default.yaml")
@@ -69,13 +90,18 @@ class Settings:
             with open(path, "r", encoding="utf-8") as fh:
                 data = yaml.safe_load(fh) or {}
         plot = PlotRegion(**data.pop("plot", {}) or {})
+        gbl = GBLSettings(**data.pop("gbl", {}) or {})
         s = cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
         s.plot = plot
+        s.gbl = gbl
         # Environment overrides for the few things people change often.
         if os.environ.get("WINGPC_EXPORT_DIR"):
             s.export_dir = os.environ["WINGPC_EXPORT_DIR"]
         if os.environ.get("WINGPC_POLL_HZ"):
             s.poll_hz = float(os.environ["WINGPC_POLL_HZ"])
+        if os.environ.get("GBL_URL"):
+            s.gbl.url = os.environ["GBL_URL"]
+            s.gbl.enabled = True
         Path(s.state_dir).mkdir(parents=True, exist_ok=True)
         return s
 

@@ -31,10 +31,19 @@ tools:
   recipe_run: control          # the recipe's own level is ALSO enforced
   export_ascii: control
 
+  # Gradient Bench LLM bridge
+  gbl_state: observe
+  gbl_pending_method: observe
+  gbl_reports: observe
+  gbl_upload_trace: control
+  gbl_read: control
+  gbl_run_cycle: hazardous           # applies a method and starts an injection
+
   # can ruin a run or hurt hardware -> needs a confirmation token
   recipe_sequence_start: hazardous
   recipe_sequence_stop: hazardous
   recipe_sequence_pause: hazardous
+  recipe_apply_gradient_method: hazardous
   ui_close_window: hazardous
   process_kill: denied
 
