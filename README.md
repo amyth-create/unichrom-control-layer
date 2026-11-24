@@ -1,5 +1,11 @@
 # wingpc-agent
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-25%20passing-brightgreen.svg)](tests/)
+[![MCP server](https://img.shields.io/badge/MCP-server-8A2BE2.svg)](https://modelcontextprotocol.io/)
+[![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](docs/RUNBOOK.md)
+
 A control-and-observation layer that lets an LLM operate **PSS / Agilent
 WinGPC UniChrom** (GPC/SEC chromatography data system) and watch the live
 chromatogram in real time.
@@ -107,3 +113,7 @@ enables Anthropic's server-side refusal fallback (`fallbacks: "default"`) so a
 policy decline is retried on another model inside the same call; remove the
 two lines in the runner call if you do not want that. Set
 `ANTHROPIC_API_KEY` or run `ant auth login` first.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
