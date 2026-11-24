@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-35%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-39%20passing-brightgreen.svg)](tests/)
 [![MCP server](https://img.shields.io/badge/MCP-server-8A2BE2.svg)](https://modelcontextprotocol.io/)
 [![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](docs/RUNBOOK.md)
 
@@ -50,8 +50,10 @@ wingpc_agent/
 recipes/            wingpc_default.yaml (menu paths, unverified), policy_default.yaml
 agent/              run_agent.py (Claude tool-runner over MCP stdio), Claude Desktop config example
 sim/fake_wingpc.py  Tk stand-in for the Raw Data window for rehearsals
-tests/              35 tests (parser, peaks, pixel extraction, policy, server offline, GBL bridge)
-docs/               RESEARCH.md, ARCHITECTURE.md, RUNBOOK.md, GRADIENT_BENCH.md
+wingpc_agent/sim/   headless simulated LC (retention model + pressure) used by the demo and tests
+demo/run_demo.py    closed-loop demo: GBL -> bridge -> simulated LC -> GBL
+tests/              39 tests (parser, peaks, pixel extraction, policy, server offline, GBL bridge, simulator)
+docs/               RESEARCH.md, ARCHITECTURE.md, RUNBOOK.md, GRADIENT_BENCH.md, DEMO.md
 ```
 
 ## Quick start
@@ -91,6 +93,17 @@ read. Recording stays with the analyst. See [docs/GRADIENT_BENCH.md](docs/GRADIE
 ```bash
 wingpc-agent bridge --gbl http://127.0.0.1:5052 --once
 ```
+
+## Demo without hardware
+
+```bash
+python demo/run_demo.py --runs 5
+```
+
+Runs Gradient Bench LLM (demo mode), the bridge and a simulated LC with
+gradient-dependent retention and pump pressure through five full cycles:
+propose, apply, run, monitor pressure, export, upload, read, record. Details in
+[docs/DEMO.md](docs/DEMO.md).
 
 ## Tools the LLM sees
 

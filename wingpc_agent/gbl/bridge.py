@@ -68,6 +68,7 @@ class RunReport:
 class Instrument:
     run_recipe: Callable[[str, dict[str, Any], str | None], dict[str, Any]]     # name, params, confirm_token
     read_text: Callable[[str], str] | None = None                                 # UIA path -> text
+    read_pressure: Callable[[], float | None] | None = None                     # pump pressure in bar, if readable
     monitor_snapshot: Callable[[], dict[str, Any]] | None = None                  # LiveMonitor.snapshot()
     monitor_start: Callable[[], None] | None = None
     notify_operator: Callable[[str], None] = print
@@ -93,10 +94,23 @@ class BridgeConfig:
     status_running_re: str = r"(running|acquir|läuft|aufnahme)"
     flat_seconds_means_done: float = 90.0      # live plot unchanged this long after expected end -> done
     min_elapsed_fraction: float = 0.8          # ignore 'done' signals before this share of the expected time
+    time_scale: float = 1.0                    # simulated minutes per real minute (1.0 on a real instrument)
+    watch_poll_s: float = 2.0
+    stop_recipe: str = "sequence_stop"
+    pressure_warn_bar: float | None = None     # log a warning above this
+    pressure_max_bar: float | None = None      # abort the run (stop recipe) above this for 2 consecutive samples
     detector_column_re: str | None = None      # pick this y column when normalising (e.g. "UV|254")
     upload_format: str = "original"            # original | normalised
     auto_read: bool = True
     confirm_each_run: bool = True              # ask the operator before starting an injection
+
+
+def _pstats(p: list[float]) -> dict[str, Any]:
+    if not p:
+        return {"samples": 0}
+    a = np.asarray(p)
+    return {"samples": int(a.size), "min_bar": round(float(a.min()), 1), "max_bar": round(float(a.max()), 1),
+            "mean_bar": round(float(a.mean()), 1), "last_bar": round(float(a[-1]), 1)}
 
 
 class Bridge:
@@ -206,8 +220,31 @@ class Bridge:
         done_re = re.compile(self.cfg.status_done_re, re.I)
         run_re = re.compile(self.cfg.status_running_re, re.I)
         reason = None
+        pressures: list[float] = []
+        over = 0
+        warned = False
         while not self._stop.is_set():
-            elapsed_min = (time.time() - t0) / 60
+            elapsed_min = (time.time() - t0) / 60 * self.cfg.time_scale
+            if self.inst.read_pressure:
+                try:
+                    pb = self.inst.read_pressure()
+                except Exception:
+                    pb = None
+                if pb is not None:
+                    pressures.append(float(pb))
+                    if self.cfg.pressure_warn_bar and pb > self.cfg.pressure_warn_bar and not warned:
+                        warned = True
+                        rep.add("pressure_warning", True, f"{pb:.0f} bar above warn level {self.cfg.pressure_warn_bar:.0f} at {elapsed_min:.1f} min")
+                        self.inst.notify_operator(f"[bridge] pressure {pb:.0f} bar above warn level")
+                    over = over + 1 if (self.cfg.pressure_max_bar and pb > self.cfg.pressure_max_bar) else 0
+                    if over >= 2:
+                        rep.add("pressure_abort", False, f"{pb:.0f} bar above max {self.cfg.pressure_max_bar:.0f}; stopping the run",
+                                pressure=_pstats(pressures))
+                        try:
+                            self.inst.run_recipe(self.cfg.stop_recipe, {}, None)
+                        except Exception as e:   # the abort must be reported even if the stop click fails
+                            rep.add("stop", False, repr(e))
+                        raise WinGPCAgentError("run aborted: pressure limit exceeded")
             if self.cfg.status_path and self.inst.read_text:
                 try:
                     txt = self.inst.read_text(self.cfg.status_path)
@@ -234,10 +271,11 @@ class Bridge:
                 reason = f"expected duration {expected:.1f} min elapsed (no monitor available)"
                 break
             if elapsed_min > timeout:
-                rep.add("watch", False, f"timed out after {elapsed_min:.1f} min (expected {expected:.1f})")
+                rep.add("watch", False, f"timed out after {elapsed_min:.1f} min (expected {expected:.1f})", pressure=_pstats(pressures))
                 raise WinGPCAgentError("run did not finish in time")
-            self._stop.wait(2.0)
-        rep.add("watch", True, reason or "stopped", expected_min=expected, elapsed_min=round((time.time() - t0) / 60, 2))
+            self._stop.wait(self.cfg.watch_poll_s)
+        rep.add("watch", True, reason or "stopped", expected_min=expected,
+                elapsed_min=round((time.time() - t0) / 60 * self.cfg.time_scale, 2), pressure=_pstats(pressures))
 
     def _export(self, m: Method, rep: RunReport, token: str | None) -> str:
         out = Path(self.cfg.export_dir) / f"gbl_run{m.run_no or 0:02d}_{time.strftime('%Y%m%d-%H%M%S')}.txt"

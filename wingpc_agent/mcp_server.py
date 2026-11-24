@@ -100,10 +100,12 @@ class Context:
                 fixed_extra_min=g.fixed_extra_min, post_time_min=g.post_time_min, status_path=g.status_path,
                 detector_column_re=g.detector_column_re, upload_format=g.upload_format,
                 auto_read=g.auto_read, confirm_each_run=False,   # headless: confirmation is the token
+                pressure_warn_bar=g.pressure_warn_bar, pressure_max_bar=g.pressure_max_bar,
             )
             inst = Instrument(
                 run_recipe=run_recipe,
                 read_text=lambda path: self.uia.read_text(path),
+                read_pressure=(lambda: _bar(self.uia.read_text(g.pressure_path))) if g.pressure_path else None,
                 monitor_snapshot=lambda: self.monitor.snapshot(max_points=50, with_peaks=False),
                 monitor_start=self.monitor.start,
                 notify_operator=lambda msg: self.gate.audit("operator_notice", "bridge", {"msg": msg[:500]}),
@@ -115,6 +117,12 @@ class Context:
     def _on_file(self, ev) -> None:
         self._file_events.append({"t": time.time(), **ev.__dict__})
         self._file_events = self._file_events[-200:]
+
+
+def _bar(text: str) -> float | None:
+    """'Pressure: 184.3 bar' -> 184.3 (first number in the text)."""
+    m = re.search(r"[-+]?\d+(?:[.,]\d+)?", text or "")
+    return float(m.group(0).replace(",", ".")) if m else None
 
 
 def build_server(settings: Settings | None = None) -> MCPServer:

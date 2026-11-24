@@ -168,6 +168,7 @@ def _bridge_cmd(s: Settings, a) -> int:
         export_dir=s.export_dir or s.state_dir, fixed_extra_min=g.fixed_extra_min, post_time_min=g.post_time_min,
         status_path=g.status_path, detector_column_re=g.detector_column_re, upload_format=g.upload_format,
         auto_read=not a.no_read, confirm_each_run=not a.yes,
+        pressure_warn_bar=g.pressure_warn_bar, pressure_max_bar=g.pressure_max_bar,
     )
 
     def run_recipe(name, params, token):
@@ -186,7 +187,9 @@ def _bridge_cmd(s: Settings, a) -> int:
         except EOFError:
             return False
 
+    from .mcp_server import _bar
     inst = Instrument(run_recipe=run_recipe, read_text=lambda p: ctx.uia.read_text(p),
+                      read_pressure=(lambda: _bar(ctx.uia.read_text(g.pressure_path))) if g.pressure_path else None,
                       monitor_snapshot=lambda: ctx.monitor.snapshot(max_points=50, with_peaks=False),
                       monitor_start=ctx.monitor.start, notify_operator=print,
                       wait_operator=None if a.yes else wait_operator)

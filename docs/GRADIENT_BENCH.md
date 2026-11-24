@@ -77,6 +77,15 @@ Starting an injection is **hazardous**: on the CLI the operator is asked per
 run (`--yes` for unattended), through MCP the `gbl_run_cycle` tool needs a
 confirmation token from `wingpc-agent confirm gbl_run_cycle`.
 
+## Pressure monitoring
+
+While a run is on, the bridge samples the pump pressure (`gbl.pressure_path`,
+a UIA path to ChromPilot's pressure read-out; the first number in that text is
+taken as bar). Above `pressure_warn_bar` it logs one warning and notifies the
+operator; above `pressure_max_bar` for two consecutive samples it runs the
+`sequence_stop` recipe, marks the cycle `pressure_abort` and uploads nothing.
+The watch step's report carries min / max / mean / last pressure.
+
 ## Knowing when the run is over
 
 `Bridge._watch` stops on the first of:

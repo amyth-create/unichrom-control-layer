@@ -54,6 +54,9 @@ class GBLSettings:
     fixed_extra_min: float = 0.0              # wash/re-equilibration time counted in the acquisition
     post_time_min: float | None = None
     status_path: str | None = None            # UIA path of ChromPilot's run-state text (from probe)
+    pressure_path: str | None = None          # UIA path of the pump pressure read-out (from probe)
+    pressure_warn_bar: float | None = None
+    pressure_max_bar: float | None = None     # bridge stops the run above this
     detector_column_re: str | None = None     # e.g. "UV|254" to pick the detector column on normalise
     upload_format: str = "original"           # original | normalised
     auto_read: bool = True                    # call GBL /api/read after the upload
