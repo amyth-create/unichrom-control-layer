@@ -59,6 +59,30 @@ installation with `wingpc-agent probe` (see RUNBOOK.md).
    Chromeleon and only *process* in WinGPC can skip WinGPC for live data
    entirely and read the Chromeleon SDK instead (not covered here).
 
+## How Chemotion ELN integrates WinGPC (checked 2026-11-25)
+
+The KIT Chemotion ELN "Agilent PSS WinGPC SEC/GPC" device page (WinGPC 8.33,
+Windows 10) does not talk to WinGPC at all. Its two features are:
+
+* **Data transfer**: "Data will automatically be transferred to the Chemotion
+  ELN once the data has been saved locally on the computer. The user only
+  needs to make sure to name the output file according to the naming
+  convention". The user saves a `.txt` export by hand; a file forwarder built
+  with the "EFW builder" (now the "Shuttle": watches a folder, waits until no
+  process holds the file and it has been unchanged for a set time, then sends
+  it by SFTP or WebDAV, optionally as a BagIt archive via ChemConverter) copies
+  it to shared storage; the ELN's data collector picks it up and routes it to
+  the user whose short label is in the file name.
+* **Remote device control**: a TightVNC server on the instrument PC shown in
+  the ELN through noVNC. A person drives WinGPC's screen; nothing is scripted.
+
+So the only other known integration is file-based plus screen-sharing, which
+matches this layer's design: ASCII exports (manual or via Automation's
+per-sample report) as the data path, and UI Automation where Chemotion uses a
+human over VNC. Sources: https://chemotion.net/docs/v2/eln/devices/hplc-lc-ms/agilent-pss-wingpc ,
+https://chemotion.net/docs/v2/eln/devices/configurations/data-transfer ,
+https://chemotion.net/docs/v2/eln/devices/configurations/remote-control .
+
 ## Sources
 
 * Agilent, *WinGPC Software for GPC/SEC Data Acquisition and Analysis User Guide*
