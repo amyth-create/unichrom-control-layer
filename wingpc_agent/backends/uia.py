@@ -279,6 +279,32 @@ class UIA:
             time.sleep(0.2)
         return False
 
+    def activate_child(self, title_re: str, main_title_re: str | None = None) -> dict[str, Any]:
+        """Activate an MDI child window (WinGPC: Method, Raw Data, Elugram, Mass
+        Distribution, Data Editor...) so the main menu bar switches to its menus.
+        Tries a top-level window first (some are floating), then a descendant of
+        the main window whose title matches."""
+        try:
+            w = self.window(title_re, timeout=1)
+            w.set_focus()
+            return _info(w).to_dict()
+        except ElementNotFound:
+            pass
+        main = self.window(main_title_re)
+        rx = re.compile(title_re)
+        for el in main.descendants():
+            try:
+                ci = _info(el)
+            except Exception:
+                continue
+            if ci.control_type in ("Window", "Pane", "Document") and rx.search(ci.name or ""):
+                try:
+                    el.set_focus()
+                except Exception:
+                    el.click_input(coords=(10, 8))   # the child's title bar
+                return ci.to_dict()
+        raise ElementNotFound(f"no MDI child window matching {title_re!r}")
+
     def close_window(self, title_re: str) -> None:
         self.window(title_re).close()
 

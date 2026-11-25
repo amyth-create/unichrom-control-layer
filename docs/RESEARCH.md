@@ -1,5 +1,7 @@
 # What is publicly known about automating WinGPC UniChrom
 
+**Update 2026-11-25:** the Agilent WinGPC user guide (D0029603 Rev. B) has since been read in full; `MANUAL_NOTES.md` holds the settled facts with page numbers and overrides this file where they differ.
+
 Research date: 2026-11-24. Vendor PDFs (agilent.com, pss-polymer.com) are behind
 bot protection and could not be fetched from the build container; the facts
 below come from search-engine snippets of those documents plus third-party
@@ -29,11 +31,11 @@ installation with `wingpc-agent probe` (see RUNBOOK.md).
 
 | Channel | Status | Notes |
 |---|---|---|
-| Public API / SDK / COM object model | **Not found** | No documentation of a WinGPC COM, .NET or REST API is public. The 1990s UniChrom lineage mentioned OLE Automation, but that is a different product. The probe scans the registry for PSS/WinGPC ProgIDs and TypeLibs anyway. |
-| Command line / macro / script | **Not found** | No `/run` switches or macro language documented. |
+| Public API / SDK / COM object model | **Not found** (confirmed by the 555-page manual) | No COM, .NET or REST API is mentioned. The probe still scans the registry for PSS/WinGPC ProgIDs and TypeLibs. |
+| Command line / macro / script | **Not found** (manual p. 65-69) | Start-up is a chain of dialogs; no switches. "Macro language" in the manual means post-processing the ASCII report elsewhere. |
 | LIMS link | Exists | PSS "standard LIMS interface" transfers results, conditions and graphics; implemented via the **ASCII-MWD report** text file, i.e. file based, not an API. |
 | ASCII export (manual) | Documented | Raw Data window -> **Data Editor**; Data Editor **File > ASCII export...** -> `.TXT`; separator and decimal sign set in an "export filter". MWD window **File > Save ASCII Report** writes raw + elugram chromatograms, molar mass distribution and method in one text file. **Column layout not published** -> our parser auto-detects dialect and blocks. |
-| Automatic export at end of sample/sequence | **Unverified** | Not found in snippets; an Agilent community answer says sequences can be exported to a *new project file* from the project management window. Check "Documentation" folder (ChromPilot Control docs). |
+| Automatic export at end of sample/sequence | **Exists** (manual p. 130) | Definition > Automation properties > Report tab > Create ASCII MWD Report writes `NNN_<template>.txt` per sample into the project folder once Automation activated is ticked. |
 | Project export | Documented | Project management window -> select sequence -> **Export data** creates a new project file (binary WinGPC format, undocumented). |
 | Report designer | Documented | **ReportDesigner** custom layouts, PDF and Excel output. Not scriptable as far as known. |
 | Live data during a run | Only on screen | Raw Data window shows the acquisition in real time; the integration article notes that e-flow evaluation "requires real-time data acquisition", confirming the live stream is internal. No file/DB/network live feed documented. |

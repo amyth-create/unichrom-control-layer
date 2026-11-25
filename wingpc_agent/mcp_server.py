@@ -101,6 +101,7 @@ class Context:
                 detector_column_re=g.detector_column_re, upload_format=g.upload_format,
                 auto_read=g.auto_read, confirm_each_run=False,   # headless: confirmation is the token
                 pressure_warn_bar=g.pressure_warn_bar, pressure_max_bar=g.pressure_max_bar,
+                export_strategy=g.export_strategy, automation_dir=g.automation_dir, automation_template=g.automation_template,
             )
             inst = Instrument(
                 run_recipe=run_recipe,
@@ -304,6 +305,8 @@ def build_server(settings: Settings | None = None) -> MCPServer:
             try:
                 if kind == "focus":
                     ctx.uia.focus(st.get("title_re"))
+                elif kind == "activate_child":
+                    ctx.uia.activate_child(st["title_re"], st.get("main_title_re"))
                 elif kind == "menu":
                     ctx.uia.menu(st["path"], st.get("window_re"))
                 elif kind == "click":

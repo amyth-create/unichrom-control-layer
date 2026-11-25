@@ -61,6 +61,27 @@ is not a time/signal table of at least 20 rows. Two rules apply before upload:
 If `auto_read` is on the bridge then calls `POST /api/read` and returns the
 model's reading (peaks, unresolved regions, verdict) in its report.
 
+## Getting the export without clicking (automation_file)
+
+WinGPC can write the export itself. In the Method window, Definition >
+Automation properties > Report tab, tick **Create ASCII MWD Report** and enter
+a template name (`gbl.txt`); then tick Definition > Automation activated.
+WinGPC then writes `001_gbl.txt`, `002_gbl.txt`, ... into the project folder as
+each sample is processed (manual p. 130). With
+
+```yaml
+gbl:
+  export_strategy: automation_file
+  automation_dir: C:\WinGPC\Data\mycampaign      # the project folder
+  automation_template: gbl.txt
+```
+
+the bridge waits for the new file after the run instead of driving the export
+menu. The file is the "Save ASCII Report" layout (results, parameters and the
+data of all windows), which the validator reduces to time + detector before
+upload. `export_strategy: recipe` (default) runs the `ascii_export_raw_data`
+recipe, which is Raw Data > ASCII save captured data in this version.
+
 ## Getting the method into WinGPC
 
 The pump timetable and oven setpoint live in ChromPilot's instrument method.
@@ -70,7 +91,7 @@ How that editor looks is installation-specific, so there are three strategies
 | strategy | what happens | when to use |
 |---|---|---|
 | `manual` (default) | the bridge prints the table and waits for the operator to key it in and confirm; start, watch, export and upload are automated | first days; any installation where the method editor is not automatable |
-| `template` | the bridge renders a method file from a template you exported once (placeholders `{temperature_c}`, `{timetable_rows}`, `{b0}`.., `{t0}`..) and the `load_instrument_method` recipe loads it | when ChromPilot/WinGPC can import a method file (check the Documentation folder; RC.Net method files are XML) |
+| `template` | the bridge renders a ChromPilot instrument-settings file from one you saved once with a gradient (Instrument Manager > File > Save settings..., `*.spm`; the cache folder's `PSS.ChromPilot.Method.Instrument.n.xml` is the same content as XML), then the `load_instrument_method` recipe does File > Load settings..., Get System Ready, OK | when the probe shows the ChromPilot method files are plain XML/text; timetables load with the next injection (manual p. 478, 502) |
 | `recipe` | the `apply_gradient_method` recipe types the values into the editor's controls | after the probe has mapped the editor's UIA tree and the recipe is verified |
 
 Starting an injection is **hazardous**: on the CLI the operator is asked per
@@ -80,8 +101,11 @@ confirmation token from `wingpc-agent confirm gbl_run_cycle`.
 ## Pressure monitoring
 
 While a run is on, the bridge samples the pump pressure (`gbl.pressure_path`,
-a UIA path to ChromPilot's pressure read-out; the first number in that text is
-taken as bar). Above `pressure_warn_bar` it logs one warning and notifies the
+a UIA path to the pump panel's actual-value field in the ChromPilot Instrument
+Manager System View; the first number in that text is taken as bar). WinGPC can
+also record the pump pressure as a detector signal of type 66 "Pump pressure"
+(Definition > Data interval), in which case it is also in the live plot and in
+the export, and `detector_column_re` keeps it out of the uploaded two columns. Above `pressure_warn_bar` it logs one warning and notifies the
 operator; above `pressure_max_bar` for two consecutive samples it runs the
 `sequence_stop` recipe, marks the cycle `pressure_abort` and uploads nothing.
 The watch step's report carries min / max / mean / last pressure.

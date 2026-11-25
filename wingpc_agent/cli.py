@@ -169,6 +169,7 @@ def _bridge_cmd(s: Settings, a) -> int:
         status_path=g.status_path, detector_column_re=g.detector_column_re, upload_format=g.upload_format,
         auto_read=not a.no_read, confirm_each_run=not a.yes,
         pressure_warn_bar=g.pressure_warn_bar, pressure_max_bar=g.pressure_max_bar,
+        export_strategy=g.export_strategy, automation_dir=g.automation_dir, automation_template=g.automation_template,
     )
 
     def run_recipe(name, params, token):

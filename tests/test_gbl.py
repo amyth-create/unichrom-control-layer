@@ -247,3 +247,34 @@ def test_http_client_against_real_gbl(gbl_app, tmp_path):
     # the analyst records on GBL's page; the loop is closed
     r = app.test_client().post("/api/record", json={})
     assert r.status_code == 200 and r.get_json()["best"] == 1
+
+
+def test_bridge_automation_file_export(tmp_path):
+    """WinGPC Automation writes NNN_<template>.txt per sample into the project folder; the bridge waits for it."""
+    import threading
+    gbl = FakeGBL(PENDING)
+    calls = []
+    proj = tmp_path / "project"
+    proj.mkdir()
+    (proj / "001_gbl.txt").write_text("old run\n")            # an older report must be ignored
+    import os, time as _t
+    os.utime(proj / "001_gbl.txt", (_t.time() - 3600, _t.time() - 3600))
+
+    def run_recipe(name, params, token):
+        calls.append(name)
+        if name == "sequence_start":
+            def later():
+                _t.sleep(0.3)
+                write_export(proj / "002_gbl.txt")
+            threading.Thread(target=later, daemon=True).start()
+        return {"ok": True, "log": []}
+    inst = Instrument(run_recipe=run_recipe, monitor_snapshot=lambda: {"changed_since_previous": False,
+                      "trace": {"calibrated": True, "x": [30.0]}}, notify_operator=lambda m: None)
+    cfg = BridgeConfig(method_strategy="manual", export_dir=str(tmp_path), export_strategy="automation_file",
+                       automation_dir=str(proj), automation_template="gbl.txt", automation_wait_s=10,
+                       flat_seconds_means_done=0, min_elapsed_fraction=0, auto_read=False, confirm_each_run=False)
+    rep = Bridge(gbl, inst, cfg).run_once()
+    assert rep.ok, rep.to_dict()
+    assert "ascii_export_raw_data" not in calls
+    assert rep.export_path.endswith("002_gbl.txt")
+    assert gbl.uploads[0][0].endswith("002_gbl.txt")

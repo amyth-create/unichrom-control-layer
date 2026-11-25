@@ -85,6 +85,14 @@ class BridgeConfig:
     start_recipe: str = "sequence_start"
     export_recipe: str = "ascii_export_raw_data"
     export_dir: str = "."
+    # "recipe": run export_recipe after the run.
+    # "automation_file": WinGPC's Automation (Definition > Automation properties >
+    #   Report > "Create ASCII MWD Report", template name e.g. gbl.txt) writes
+    #   NNN_gbl.txt into the project folder for every sample; wait for that file.
+    export_strategy: str = "recipe"
+    automation_dir: str | None = None          # project folder WinGPC writes into
+    automation_template: str = "gbl.txt"       # the template name set in the Report tab
+    automation_wait_s: float = 180.0
     fixed_extra_min: float = 0.0               # wash / re-equilibration counted in the run
     post_time_min: float | None = None
     run_timeout_factor: float = 1.5
@@ -278,6 +286,8 @@ class Bridge:
                 elapsed_min=round((time.time() - t0) / 60 * self.cfg.time_scale, 2), pressure=_pstats(pressures))
 
     def _export(self, m: Method, rep: RunReport, token: str | None) -> str:
+        if self.cfg.export_strategy == "automation_file":
+            return self._export_automation_file(m, rep)
         out = Path(self.cfg.export_dir) / f"gbl_run{m.run_no or 0:02d}_{time.strftime('%Y%m%d-%H%M%S')}.txt"
         out.parent.mkdir(parents=True, exist_ok=True)
         res = self.inst.run_recipe(self.cfg.export_recipe, {"path": str(out)}, token)
@@ -291,6 +301,32 @@ class Bridge:
         rep.add("export", True, str(out), path=str(out), bytes=out.stat().st_size)
         rep.export_path = str(out)
         return str(out)
+
+    def _export_automation_file(self, m: Method, rep: RunReport) -> str:
+        """Wait for the per-sample ASCII report WinGPC's automation writes
+        (`NNN_<template>` in the project folder), newer than the run start."""
+        folder = Path(self.cfg.automation_dir or self.cfg.export_dir)
+        started = next((s.t for s in rep.steps if s.step == "start"), time.time() - 1)
+        suffix = "_" + self.cfg.automation_template.lower()
+        deadline = time.time() + self.cfg.automation_wait_s
+        found: Path | None = None
+        while time.time() < deadline and not self._stop.is_set():
+            cands = [p for p in folder.glob("*" + self.cfg.automation_template)
+                     if p.name.lower().endswith(suffix) and p.stat().st_mtime >= started - 2]
+            if cands:
+                found = max(cands, key=lambda p: p.stat().st_mtime)
+                size = found.stat().st_size
+                self._stop.wait(1.0)                      # let WinGPC finish writing
+                if found.stat().st_size == size and size > 0:
+                    break
+            self._stop.wait(1.0)
+        if not found:
+            rep.add("export", False, f"no new *{suffix} in {folder} within {self.cfg.automation_wait_s:.0f}s "
+                                     f"(is Automation activated with Create ASCII MWD Report?)")
+            raise WinGPCAgentError("automation ASCII report did not appear")
+        rep.add("export", True, str(found), path=str(found), bytes=found.stat().st_size, strategy="automation_file")
+        rep.export_path = str(found)
+        return str(found)
 
     def _validate(self, path: str, rep: RunReport) -> str:
         tables = ascii_parser.parse_file(path)

@@ -59,6 +59,9 @@ class GBLSettings:
     pressure_max_bar: float | None = None     # bridge stops the run above this
     detector_column_re: str | None = None     # e.g. "UV|254" to pick the detector column on normalise
     upload_format: str = "original"           # original | normalised
+    export_strategy: str = "recipe"           # recipe | automation_file (WinGPC Automation "Create ASCII MWD Report")
+    automation_dir: str | None = None         # the project folder WinGPC writes NNN_<template>.txt into
+    automation_template: str = "gbl.txt"      # template name entered in Definition > Automation properties > Report
     auto_read: bool = True                    # call GBL /api/read after the upload
     confirm_each_run: bool = True             # operator must say yes before an injection starts
 
@@ -70,6 +73,7 @@ class Settings:
     main_window_title_re: str = r".*WinGPC.*"
     # Where WinGPC keeps projects / where ASCII exports land. Filled by probe.
     project_dirs: list[str] = field(default_factory=list)
+    cache_dirs: list[str] = field(default_factory=lambda: [r"C:\wingpc_8#1"])  # WinGPC cache folder(s): INI, ChromPilot XML, logbooks
     export_dir: str | None = None
     export_extensions: list[str] = field(default_factory=lambda: [".txt", ".csv", ".asc", ".dat"])
     # Live monitor

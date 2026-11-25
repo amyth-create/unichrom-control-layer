@@ -1,12 +1,17 @@
-# Recipes for WinGPC UniChrom.
+# Recipes for Agilent/PSS WinGPC Software (WinGPC UniChrom), ChromPilot edition.
 #
-# IMPORTANT: menu/control names below are STARTING GUESSES assembled from the
-# public Agilent/PSS documentation (Raw Data window, Data Editor, "File > ASCII
-# export...", "Save ASCII Report", ChromPilot "Sequence Manager" / "Instrument
-# Manager"). They are marked verified: false until an operator has run
-#   wingpc-agent probe --ui-tree
-# on the WinGPC PC, compared the dumped control names with these paths, fixed
-# them, and flipped the flag. The server refuses unverified recipes by default.
+# Menu captions below come from the Agilent WinGPC Software User Guide
+# D0029603 Rev. B (07/2024), page numbers in `source`. WinGPC is an MDI
+# application: the menu bar changes with the active sub-window (Method window:
+# Method / Interface / Definition / Language / Window / Help; Raw Data window:
+# Raw Data / Calibration Data / Injects / Editor / Options; Elugram: File /
+# Overlay / Curves / Options; Mass Distribution: File / Options; Data Editor:
+# File / Columns / Lines). Every recipe therefore starts by activating the
+# sub-window it needs (`activate_child`).
+#
+# The captions are documented, but the UIA control tree (dialog names, button
+# automation ids, grid cells) is not: recipes stay `verified: false` until an
+# operator has run `wingpc-agent probe` and watched each one succeed.
 #
 # UIA path grammar:  <window title regex>|<ctrl_type>:<Name>|...   (see recipes.py)
 
@@ -21,32 +26,84 @@ recipes:
     steps:
       - {kind: focus, title_re: ".*WinGPC.*"}
 
-  open_project:
-    description: Open a WinGPC project file via File > Open.
-    level: control
+  # ---------------------------------------------------------------- data / projects
+  open_project_management:
+    description: Open the Project management window (projects, logins, injects; Data to WinGPC / Export data).
+    level: observe
     verified: false
-    params: {path: "Full path of the project to open"}
+    source: "p. 87-88, 269"
     steps:
       - {kind: focus, title_re: ".*WinGPC.*"}
-      - {kind: menu, path: ["File", "Open..."]}
-      - {kind: wait, title_re: ".*(Open|Öffnen).*", timeout: 10}
-      - {kind: type, target: ".*(Open|Öffnen).*|Edit:File name:", text: "{path}"}
-      - {kind: keys, keys: "{ENTER}"}
-      - {kind: wait_gone, title_re: ".*(Open|Öffnen).*", timeout: 30}
+      - {kind: activate_child, title_re: ".*Raw ?Data.*"}
+      - {kind: menu, path: ["Raw Data", "Load"]}
+      - {kind: wait, title_re: ".*Project ?management.*", timeout: 15}
 
-  ascii_export_raw_data:
-    description: >
-      Export the current Raw Data window as an ASCII text file through the
-      Data Editor (Raw Data menu -> Data Editor, then File -> ASCII export...).
+  load_method:
+    description: Load a WinGPC data acquisition method (*.MET) in the Method window (Method > Load).
     level: control
     verified: false
+    source: "p. 177"
+    params: {path: "Full path of the *.MET file"}
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: activate_child, title_re: ".*Method.*"}
+      - {kind: menu, path: ["Method", "Load"]}
+      - {kind: wait, title_re: ".*(Open|Öffnen|Load).*", timeout: 10}
+      - {kind: type, target: ".*(Open|Öffnen|Load).*|Edit:File name:", text: "{path}"}
+      - {kind: keys, keys: "{ENTER}"}
+      - {kind: wait_gone, title_re: ".*(Open|Öffnen|Load).*", timeout: 30}
+
+  # ---------------------------------------------------------------- ASCII exports
+  ascii_save_captured_data:
+    description: >
+      Raw Data window > Raw Data > ASCII save captured data: writes the displayed
+      raw data (all detector signals, no baseline/volume correction) as a text
+      file. The most direct raw chromatogram export WinGPC offers.
+    level: control
+    verified: false
+    source: "p. 204"
     params: {path: "Destination .txt path"}
     returns: path
     steps:
       - {kind: focus, title_re: ".*WinGPC.*"}
-      - {kind: menu, path: ["Raw Data", "Data Editor"]}
-      - {kind: wait, title_re: ".*Data ?Editor.*", timeout: 15}
-      - {kind: menu, window_re: ".*Data ?Editor.*", path: ["File", "ASCII export..."]}
+      - {kind: activate_child, title_re: ".*Raw ?Data.*"}
+      - {kind: menu, path: ["Raw Data", "ASCII save captured data"]}
+      - {kind: wait, title_re: ".*(Save|Speichern|ASCII).*", timeout: 10}
+      - {kind: type, target: ".*(Save|Speichern|ASCII).*|Edit:File name:", text: "{path}"}
+      - {kind: keys, keys: "{ENTER}"}
+      - {kind: wait_gone, title_re: ".*(Save|Speichern|ASCII).*", timeout: 30}
+
+  ascii_export_raw_data:
+    description: >
+      Alias kept for the bridge: same as ascii_save_captured_data (raw data as
+      text, straight from the Raw Data window).
+    level: control
+    verified: false
+    source: "p. 204"
+    params: {path: "Destination .txt path"}
+    returns: path
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: activate_child, title_re: ".*Raw ?Data.*"}
+      - {kind: menu, path: ["Raw Data", "ASCII save captured data"]}
+      - {kind: wait, title_re: ".*(Save|Speichern|ASCII).*", timeout: 10}
+      - {kind: type, target: ".*(Save|Speichern|ASCII).*|Edit:File name:", text: "{path}"}
+      - {kind: keys, keys: "{ENTER}"}
+      - {kind: wait_gone, title_re: ".*(Save|Speichern|ASCII).*", timeout: 30}
+
+  elugram_export_ascii:
+    description: >
+      Elugram window > File > Export ASCII: baseline- and volume-corrected
+      curves as columns "volume, detector signal 1, detector signal 2, ...".
+    level: control
+    verified: false
+    source: "p. 230 (Table 27)"
+    params: {path: "Destination .txt path"}
+    returns: path
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: activate_child, title_re: ".*Elugram.*"}
+      - {kind: menu, path: ["File", "Export ASCII"]}
       - {kind: wait, title_re: ".*(Save|Speichern|Export).*", timeout: 10}
       - {kind: type, target: ".*(Save|Speichern|Export).*|Edit:File name:", text: "{path}"}
       - {kind: keys, keys: "{ENTER}"}
@@ -54,93 +111,116 @@ recipes:
 
   save_ascii_report_mwd:
     description: >
-      MWD window -> File -> Save ASCII Report (raw + elugram chromatograms,
-      molar mass distribution and method as one text file).
+      Mass Distribution window > File > Save ASCII Report: one text file with
+      all results, sample parameters, analysis conditions and the data of all
+      graphical windows (the same output the automation writes per sample).
     level: control
     verified: false
+    source: "p. 261-262 (Table 39)"
     params: {path: "Destination .txt path"}
     returns: path
     steps:
       - {kind: focus, title_re: ".*WinGPC.*"}
-      - {kind: menu, path: ["Window", "MWD"]}
+      - {kind: activate_child, title_re: ".*(Mass ?Distribution|MWD).*"}
       - {kind: menu, path: ["File", "Save ASCII Report"]}
       - {kind: wait, title_re: ".*(Save|Speichern).*", timeout: 10}
       - {kind: type, target: ".*(Save|Speichern).*|Edit:File name:", text: "{path}"}
       - {kind: keys, keys: "{ENTER}"}
       - {kind: wait_gone, title_re: ".*(Save|Speichern).*", timeout: 30}
 
-  open_sequence_manager:
-    description: Open the ChromPilot Sequence Manager.
-    level: observe
+  data_editor_ascii_export:
+    description: >
+      Raw Data window > Editor > Slice data (copies the raw data to the Data
+      Editor), then Data Editor > File > ASCII Export... with the editor's own
+      column / line / decimal separator settings (Columns and Lines menus).
+    level: control
     verified: false
+    source: "p. 208 (Table 23), 286-289"
+    params: {path: "Destination .txt path"}
+    returns: path
     steps:
       - {kind: focus, title_re: ".*WinGPC.*"}
-      - {kind: menu, path: ["ChromPilot", "Sequence Manager"]}
-      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 15}
+      - {kind: activate_child, title_re: ".*Raw ?Data.*"}
+      - {kind: menu, path: ["Editor", "Slice data"]}
+      - {kind: wait, title_re: ".*Data ?Editor.*", timeout: 15}
+      - {kind: activate_child, title_re: ".*Data ?Editor.*"}
+      - {kind: menu, path: ["File", "ASCII Export..."]}
+      - {kind: wait, title_re: ".*(Save|Speichern|Export).*", timeout: 10}
+      - {kind: type, target: ".*(Save|Speichern|Export).*|Edit:File name:", text: "{path}"}
+      - {kind: keys, keys: "{ENTER}"}
+      - {kind: wait_gone, title_re: ".*(Save|Speichern|Export).*", timeout: 30}
 
+  # ---------------------------------------------------------------- automation (per-sample files)
+  open_automation_properties:
+    description: >
+      Method window > Definition > Automation properties: the "WinGPC Software
+      Batch Processing Settings" dialog. Its Report tab option "Create ASCII MWD
+      Report" writes NNN_<template>.txt into the project folder for every sample
+      automatically; "Automation activated" in the same menu switches it on.
+    level: control
+    verified: false
+    source: "p. 127-131, 181 (Table 15)"
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: activate_child, title_re: ".*Method.*"}
+      - {kind: menu, path: ["Definition", "Automation properties"]}
+      - {kind: wait, title_re: ".*Batch Processing Settings.*", timeout: 15}
+
+  automation_toggle:
+    description: Method window > Definition > Automation activated (toggles the tick mark).
+    level: control
+    verified: false
+    source: "p. 131, 181"
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: activate_child, title_re: ".*Method.*"}
+      - {kind: menu, path: ["Definition", "Automation activated"]}
+
+  # ---------------------------------------------------------------- ChromPilot
   open_instrument_manager:
-    description: Open the ChromPilot Instrument Manager (status of pump, detectors, autosampler).
+    description: >
+      Open the ChromPilot Instrument Manager (System View: every module's set
+      and actual values incl. pump pressure, status diodes, Get System Ready).
+      Via the Method window's ChromPilot button or the CP button in the status bar.
     level: observe
     verified: false
+    source: "p. 476-483"
     steps:
       - {kind: focus, title_re: ".*WinGPC.*"}
-      - {kind: menu, path: ["ChromPilot", "Instrument Manager"]}
+      - {kind: click, target: ".*WinGPC.*|Button:CP"}
       - {kind: wait, title_re: ".*Instrument ?Manager.*", timeout: 15}
-
-  sequence_start:
-    description: Start the loaded sequence in the ChromPilot Sequence Manager.
-    level: hazardous
-    verified: false
-    steps:
-      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
-      - {kind: click, target: ".*Sequence ?Manager.*|Button:Start"}
-
-  sequence_stop:
-    description: Stop / abort the running sequence.
-    level: hazardous
-    verified: false
-    steps:
-      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
-      - {kind: click, target: ".*Sequence ?Manager.*|Button:Stop"}
-
-  sequence_pause:
-    description: Pause the running sequence after the current sample.
-    level: hazardous
-    verified: false
-    steps:
-      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
-      - {kind: click, target: ".*Sequence ?Manager.*|Button:Pause"}
-
-  # ---------------------------------------------------------------- Gradient Bench LLM
-  # Used by the GBL bridge (wingpc_agent/gbl). The pump timetable and column
-  # temperature live in the ChromPilot instrument method; how the editor looks
-  # must be learned from `wingpc-agent probe` (ui_tree of the method editor).
 
   load_instrument_method:
     description: >
-      Load an instrument method file produced from a template (template
-      strategy) so the next sequence line uses it. Path comes from the bridge.
+      Instrument Manager > File > Load settings...: loads a complete module
+      parameter set (*.spm) including pump timetables (gradients) and oven
+      setpoint. Settings are loaded but only sent on Get system ready / OK.
     level: control
     verified: false
-    params: {path: "Method file written by gbl.method.write_method_file"}
+    source: "p. 478 (Table 68), 500-502"
+    params: {path: "Full path of the *.spm instrument settings file"}
     steps:
       - {kind: focus, title_re: ".*WinGPC.*"}
-      - {kind: menu, path: ["ChromPilot", "Instrument Manager"]}
+      - {kind: click, target: ".*WinGPC.*|Button:CP"}
       - {kind: wait, title_re: ".*Instrument ?Manager.*", timeout: 15}
-      - {kind: menu, window_re: ".*Instrument ?Manager.*", path: ["Method", "Load..."]}
+      - {kind: menu, window_re: ".*Instrument ?Manager.*", path: ["File", "Load settings..."]}
       - {kind: wait, title_re: ".*(Open|Öffnen|Load).*", timeout: 10}
       - {kind: type, target: ".*(Open|Öffnen|Load).*|Edit:File name:", text: "{path}"}
       - {kind: keys, keys: "{ENTER}"}
       - {kind: wait_gone, title_re: ".*(Open|Öffnen|Load).*", timeout: 30}
+      - {kind: click, target: ".*Instrument ?Manager.*|Button:Get System Ready"}
+      - {kind: click, target: ".*Instrument ?Manager.*|Button:OK"}
 
   apply_gradient_method:
     description: >
-      Fill the pump timetable and oven setpoint in the ChromPilot method editor
-      (recipe strategy). Params t0..t9 / b0..b9 / a0..a9 are node times and %B /
-      %A as strings (blank when unused), temperature_c, n_rows, duration_min.
-      The grid cell paths below are placeholders to be replaced from the probe.
+      Recipe strategy for the GBL bridge: type the oven setpoint and the pump
+      timetable into the Instrument Manager module panels and press Apply, then
+      File > Save settings... The pump panel / timetable controls depend on the
+      RC.Net driver ("WinGPC System Control documentation"); the targets below
+      are placeholders to be replaced from the probe's UI tree.
     level: hazardous
     verified: false
+    source: "p. 479-480, 501-502"
     params:
       temperature_c: "oven setpoint"
       n_rows: "number of timetable rows"
@@ -177,13 +257,93 @@ recipes:
       a9: "node 9 %A (blank if unused)"
     steps:
       - {kind: focus, title_re: ".*WinGPC.*"}
-      - {kind: menu, path: ["ChromPilot", "Instrument Manager"]}
+      - {kind: click, target: ".*WinGPC.*|Button:CP"}
       - {kind: wait, title_re: ".*Instrument ?Manager.*", timeout: 15}
-      - {kind: click, target: ".*Instrument ?Manager.*|TabItem:Pump"}
       - {kind: type, target: ".*Instrument ?Manager.*|Edit:%B", text: "{b0}"}
-      - {kind: click, target: ".*Instrument ?Manager.*|TabItem:Timetable"}
       - {kind: type, target: ".*Instrument ?Manager.*|DataGrid:Timetable|DataItem:index=0|Edit:Time", text: "{t1}"}
       - {kind: type, target: ".*Instrument ?Manager.*|DataGrid:Timetable|DataItem:index=0|Edit:%B", text: "{b1}"}
-      - {kind: click, target: ".*Instrument ?Manager.*|TabItem:Column"}
       - {kind: type, target: ".*Instrument ?Manager.*|Edit:Temperature", text: "{temperature_c}"}
-      - {kind: click, target: ".*Instrument ?Manager.*|Button:Save"}
+      - {kind: click, target: ".*Instrument ?Manager.*|Button:Apply"}
+      - {kind: click, target: ".*Instrument ?Manager.*|Button:Get System Ready"}
+      - {kind: click, target: ".*Instrument ?Manager.*|Button:OK"}
+
+  open_sequence_manager:
+    description: >
+      Open the ChromPilot Sequence Manager (Toolwindow Start/Stop > Sequence
+      button, or Raw Data window > Editor > Samples on a controlled instrument).
+    level: observe
+    verified: false
+    source: "p. 175-176, 489"
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: click, target: ".*WinGPC.*|Button:Sequence"}
+      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 15}
+
+  sequence_load:
+    description: >
+      Sequence Manager icon bar > Open. Loads a ChromPilot sequence (*.sps),
+      overwriting the current table.
+    level: control
+    verified: false
+    source: "p. 490, 504"
+    params: {path: "Full path of the *.sps sequence file"}
+    steps:
+      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
+      - {kind: click, target: ".*Sequence ?Manager.*|Button:Open"}
+      - {kind: wait, title_re: ".*(Open|Öffnen).*", timeout: 10}
+      - {kind: type, target: ".*(Open|Öffnen).*|Edit:File name:", text: "{path}"}
+      - {kind: keys, keys: "{ENTER}"}
+      - {kind: wait_gone, title_re: ".*(Open|Öffnen).*", timeout: 30}
+
+  sequence_start:
+    description: >
+      Press the green Start button of the Sequence Manager ("Start Sequence",
+      top right). Starts the autosampler and the data acquisition; a new login
+      is created in the project.
+    level: hazardous
+    verified: false
+    source: "p. 131, 176, 502"
+    steps:
+      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
+      - {kind: click, target: ".*Sequence ?Manager.*|Button:Start"}
+
+  sequence_stop:
+    description: >
+      Press Stop in the Sequence Manager: stops the autosampler and the data
+      acquisition immediately (a restart continues with the last unfinished row).
+    level: hazardous
+    verified: false
+    source: "p. 502"
+    steps:
+      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
+      - {kind: click, target: ".*Sequence ?Manager.*|Button:Stop"}
+
+  sequence_pause:
+    description: >
+      Press Pause in the Sequence Manager: delays the next injection, data
+      acquisition continues.
+    level: hazardous
+    verified: false
+    source: "p. 503"
+    steps:
+      - {kind: wait, title_re: ".*Sequence ?Manager.*", timeout: 5}
+      - {kind: click, target: ".*Sequence ?Manager.*|Button:Pause"}
+
+  # ---------------------------------------------------------------- non-controlled instrument (UDC / A/D)
+  record_start:
+    description: Toolwindow Start/Stop > Record (instrument NOT controlled by ChromPilot).
+    level: hazardous
+    verified: false
+    source: "p. 176"
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: click, target: ".*WinGPC.*|Button:Record"}
+
+  record_stop:
+    description: Toolwindow Start/Stop > Stop (instrument NOT controlled by ChromPilot).
+    level: hazardous
+    verified: false
+    source: "p. 176"
+    steps:
+      - {kind: focus, title_re: ".*WinGPC.*"}
+      - {kind: click, target: ".*WinGPC.*|Button:Stop"}

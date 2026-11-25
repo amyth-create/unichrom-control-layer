@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-39%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-40%20passing-brightgreen.svg)](tests/)
 [![MCP server](https://img.shields.io/badge/MCP-server-8A2BE2.svg)](https://modelcontextprotocol.io/)
 [![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](docs/RUNBOOK.md)
 
@@ -52,8 +52,8 @@ agent/              run_agent.py (Claude tool-runner over MCP stdio), Claude Des
 sim/fake_wingpc.py  Tk stand-in for the Raw Data window for rehearsals
 wingpc_agent/sim/   headless simulated LC (retention model + pressure) used by the demo and tests
 demo/run_demo.py    closed-loop demo: GBL -> bridge -> simulated LC -> GBL
-tests/              39 tests (parser, peaks, pixel extraction, policy, server offline, GBL bridge, simulator)
-docs/               RESEARCH.md, ARCHITECTURE.md, RUNBOOK.md, GRADIENT_BENCH.md, DEMO.md
+tests/              40 tests (parser, peaks, pixel extraction, policy, server offline, GBL bridge, simulator)
+docs/               RESEARCH.md, MANUAL_NOTES.md, ARCHITECTURE.md, RUNBOOK.md, GRADIENT_BENCH.md, DEMO.md
 ```
 
 ## Quick start
@@ -128,11 +128,15 @@ Hazardous recipes shipped: `sequence_start`, `sequence_stop`, `sequence_pause`.
   (retention time within one pixel, height within 5 %); policy gate and token
   flow; MCP server builds, lists 25 tools and degrades cleanly without
   Windows.
+* Grounded in the Agilent WinGPC user guide (D0029603 Rev. B): the menu
+  captions and window names in `recipes/wingpc_default.yaml`, the ChromPilot
+  Instrument and Sequence Manager functions, the per-sample automation export,
+  the file types and the cache folder. See `docs/MANUAL_NOTES.md`.
 * **Not yet verified** (needs the real PC): pywinauto against WinGPC's actual
-  control tree, the menu captions in `recipes/wingpc_default.yaml`, where
-  WinGPC's chart pane sits, the ASCII export column layout, and whether the
-  installer registers any COM automation object. The probe + runbook exist to
-  settle exactly those.
+  control tree (dialog and button automation ids), where the chart pane sits,
+  the export column layout, the pump timetable editor (described in the
+  separate System Control documentation), and whether any COM object is
+  registered. The probe + runbook exist to settle exactly those.
 
 ## Model notes
 

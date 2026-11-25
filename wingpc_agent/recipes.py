@@ -13,6 +13,7 @@ Step kinds:
   type:    target: "<uia path>", text: "..."        -> set text (with_spaces ok)
   keys:    keys: "^s" / "{ENTER}"                   -> pywinauto send_keys syntax
   wait:    target: "<uia path>" | title_re: ...     -> wait until exists (timeout)
+  activate_child: title_re: ...                     -> activate an MDI sub-window (WinGPC's menu bar follows it)
   wait_gone: same, until it disappears
   sleep:   seconds: 0.5
   select:  target, item: "..."                      -> combobox / list item
@@ -42,6 +43,7 @@ class Recipe:
     verified: bool = False
     params: dict[str, str] = field(default_factory=dict)   # name -> description
     returns: str | None = None      # e.g. "path of created file"
+    source: str | None = None       # manual page reference
 
     def render(self, **kwargs: Any) -> list[dict[str, Any]]:
         missing = [p for p in self.params if p not in kwargs]
@@ -85,6 +87,7 @@ class RecipeBook:
                 verified=bool(body.get("verified", False)),
                 params=body.get("params") or {},
                 returns=body.get("returns"),
+                source=body.get("source"),
             )
         return cls(recipes, str(p))
 
@@ -102,6 +105,7 @@ class RecipeBook:
                 "verified": r.verified,
                 "params": r.params,
                 "returns": r.returns,
+                "source": r.source,
             }
             for r in self.recipes.values()
         ]

@@ -145,12 +145,54 @@ def run_probe(settings: Settings, ui_tree: bool = True, depth: int = 6) -> dict[
     except BackendUnavailable as e:
         report["windows"] = {"error": str(e)}
 
+    report["cache_folders"] = _cache_folders(settings)
     report["duration_s"] = round(time.time() - t0, 2)
     report["next_steps"] = _advice(report)
     out_dir = Path(settings.state_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "discovery.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     return report
+
+
+def _cache_folders(settings: Settings) -> list[dict[str, Any]]:
+    """WinGPC's cache folder C:\\wingpc_8#n holds WinGPC_8.INI (default
+    directories), the ChromPilot method/sequence/configuration XML files, the
+    encrypted logbooks and Instrumentn.* default methods (manual p. 550-552).
+    Report what is there and whether the ChromPilot files are plain XML (then the
+    template strategy can render them)."""
+    out: list[dict[str, Any]] = []
+    import glob as _glob
+    pats = list(settings.cache_dirs) + [r"C:\wingpc_8#*"]
+    seen: set[str] = set()
+    for pat in pats:
+        for d in _glob.glob(pat):
+            if d in seen or not os.path.isdir(d):
+                continue
+            seen.add(d)
+            row: dict[str, Any] = {"dir": d, "files": sorted(os.listdir(d))[:200]}
+            ini = os.path.join(d, "WinGPC_8.INI")
+            if os.path.exists(ini):
+                try:
+                    txt = Path(ini).read_text(encoding="latin-1", errors="replace")
+                    row["ini_dir_lines"] = [ln.strip() for ln in txt.splitlines()
+                                            if any(k in ln.lower() for k in ("dir", "path", "folder", "verzeichnis"))][:40]
+                except OSError:
+                    pass
+            for f in sorted(os.listdir(d)):
+                fl = f.lower()
+                if fl.startswith("pss.chrompilot") or fl.endswith((".spm", ".sps", ".aut")):
+                    fp = os.path.join(d, f)
+                    try:
+                        head = Path(fp).read_bytes()[:400]
+                        row.setdefault("chrompilot_files", []).append({
+                            "file": f, "bytes": os.path.getsize(fp),
+                            "looks_like_xml": head.lstrip().startswith((b"<?xml", b"<")),
+                            "head": head.decode("utf-8", errors="replace")[:200],
+                        })
+                    except OSError:
+                        continue
+            out.append(row)
+    return out
 
 
 def _collect_menu_names(node: dict[str, Any], acc: list[str] | None = None, prefix: str = "") -> list[str]:
@@ -180,6 +222,13 @@ def _advice(r: dict[str, Any]) -> list[str]:
         tips.append("Read the Documentation folder (ChromPilot Control docs) for any LIMS/automation hooks.")
     if r.get("menu_items"):
         tips.append("Compare recipes/wingpc_default.yaml menu paths with report['menu_items'] and set verified: true.")
+    for cf in r.get("cache_folders") or []:
+        xmls = [c for c in cf.get("chrompilot_files", []) if c.get("looks_like_xml")]
+        if xmls:
+            tips.append(f"{cf['dir']}: ChromPilot method/sequence files are XML ({', '.join(x['file'] for x in xmls[:3])}). "
+                        "Export a *.spm with a gradient from the Instrument Manager and use it as the template strategy's template.")
+        if cf.get("ini_dir_lines"):
+            tips.append(f"WinGPC_8.INI default directories: {cf['ini_dir_lines'][:5]} -> put the project folder into project_dirs / gbl.automation_dir.")
     if r.get("plot_candidates"):
         c = r["plot_candidates"][0]
         tips.append(f"Likely plot control: {c['control_type']} class={c['class_name']} rect={c['rect']}. Put its UIA path in plot.control_path or its rect in plot.rect.")
